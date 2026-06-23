@@ -1,0 +1,62 @@
+# =============================================================================
+# Crawler Configuration — Default Settings
+# =============================================================================
+
+crawler:
+  # Politeness
+  user_agent: "CrawlBot/1.0 (+contact@project.edu)"
+  default_delay_ms: 1000
+  max_concurrent_per_domain: 2
+  respect_robots_txt: true
+
+  # Limits
+  max_content_size_bytes: 10485760  # 10 MB
+  max_depth: 10
+  max_redirects: 5
+  request_timeout_seconds: 30
+  retry_count: 3
+  retry_backoff_base_ms: 1000
+
+  # Spider trap protection
+  max_url_length: 2048
+  max_pages_per_domain: 100000
+
+  # Deduplication
+  bloom_filter:
+    expected_items: 10000000  # 10M
+    false_positive_rate: 0.01  # 1%
+
+  simhash:
+    hamming_threshold: 3
+
+  minhash:
+    num_hash_functions: 128
+    similarity_threshold: 0.8
+
+frontier:
+  num_priority_levels: 4
+  domain_router_vnodes: 256
+
+indexing:
+  num_shards: 16
+  replica_factor: 1
+  segment_merge_threshold: 10
+  stopword_file: "configs/stopwords/en.txt"
+
+search:
+  bm25:
+    k1: 1.2
+    b: 0.75
+  pagerank:
+    damping_factor: 0.85
+    max_iterations: 100
+    epsilon: 0.000001
+  hits:
+    max_iterations: 50
+    epsilon: 0.000001
+  hybrid:
+    rrf_constant: 60
+    default_mode: "bm25"
+  results:
+    default_page_size: 10
+    max_page_size: 100
