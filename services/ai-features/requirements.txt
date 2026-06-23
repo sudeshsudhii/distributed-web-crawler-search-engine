@@ -1,0 +1,9 @@
+sentence-transformers>=3.0.0
+onnxruntime>=1.18.0
+torch>=2.3.0
+transformers>=4.40.0
+fastapi>=0.111.0
+uvicorn>=0.30.0
+kafka-python>=2.0.2
+prometheus-client>=0.20.0
+numpy>=1.26.0
