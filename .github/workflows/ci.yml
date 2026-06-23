@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # ===========================================================================
+  # Go Services — Build, Test, Lint
+  # ===========================================================================
+  go:
+    name: Go Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build all services
+        run: go build -v ./...
+
+      - name: Run tests
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+
+  # ===========================================================================
+  # Go Lint
+  # ===========================================================================
+  lint:
+    name: Go Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  # ===========================================================================
+  # Python Services — Lint & Type Check
+  # ===========================================================================
+  python:
+    name: Python Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          pip install ruff mypy
+          pip install -r services/parser/requirements.txt
+          pip install -r services/ai-features/requirements.txt
+
+      - name: Lint with Ruff
+        run: ruff check services/
+
+      - name: Type check with mypy
+        run: mypy services/ --ignore-missing-imports
+        continue-on-error: true
+
+  # ===========================================================================
+  # Docker Build Validation
+  # ===========================================================================
+  docker:
+    name: Docker Compose Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose
+        run: docker compose -f docker-compose.yml config --quiet
