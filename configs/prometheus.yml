@@ -1,0 +1,55 @@
+# =============================================================================
+# Prometheus Configuration — Service Discovery & Scraping
+# =============================================================================
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  # Self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Go services (expose /metrics on port 2112)
+  - job_name: 'crawler-coordinator'
+    static_configs:
+      - targets: ['crawler-coordinator:2112']
+
+  - job_name: 'url-frontier'
+    static_configs:
+      - targets: ['url-frontier:2112']
+
+  - job_name: 'crawler-worker'
+    static_configs:
+      - targets: ['crawler-worker:2112']
+
+  - job_name: 'search-api'
+    static_configs:
+      - targets: ['search-api:2112']
+
+  - job_name: 'ranking-service'
+    static_configs:
+      - targets: ['ranking-service:2112']
+
+  - job_name: 'indexing-service'
+    static_configs:
+      - targets: ['indexing-service:2112']
+
+  - job_name: 'auth-service'
+    static_configs:
+      - targets: ['auth-service:2112']
+
+  - job_name: 'analytics-service'
+    static_configs:
+      - targets: ['analytics-service:2112']
+
+  # Infrastructure
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres-exporter:9187']
