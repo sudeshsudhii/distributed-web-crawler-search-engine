@@ -1,0 +1,168 @@
+# =============================================================================
+# Distributed Search Engine — Local Development Infrastructure
+# =============================================================================
+# Usage:
+#   make docker-up    → Start all infrastructure
+#   make docker-down  → Stop all infrastructure
+# =============================================================================
+
+services:
+  # ===========================================================================
+  # PostgreSQL — Metadata, crawl state, user data
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: dse-postgres
+    environment:
+      POSTGRES_USER: crawler
+      POSTGRES_PASSWORD: crawler
+      POSTGRES_DB: search_engine
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crawler -d search_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dse-network
+
+  # ===========================================================================
+  # Redis Cluster — URL Frontier, caching, Bloom filter, rate limiting
+  # ===========================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: dse-redis
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --save 60 1000
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dse-network
+
+  # ===========================================================================
+  # Apache Kafka (KRaft mode — no ZooKeeper) — Event streaming
+  # ===========================================================================
+  kafka:
+    image: bitnami/kafka:3.7
+    container_name: dse-kafka
+    environment:
+      # KRaft mode (no ZooKeeper)
+      KAFKA_CFG_NODE_ID: 1
+      KAFKA_CFG_PROCESS_ROLES: broker,controller
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9094
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,EXTERNAL://localhost:9094
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CFG_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      # Auto-create topics for dev
+      KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_CFG_NUM_PARTITIONS: 8
+      KAFKA_CFG_DEFAULT_REPLICATION_FACTOR: 1
+      # Performance
+      KAFKA_CFG_LOG_RETENTION_HOURS: 168  # 7 days
+      KAFKA_CFG_LOG_SEGMENT_BYTES: 1073741824  # 1GB
+    ports:
+      - "9094:9094"
+    volumes:
+      - kafka_data:/bitnami/kafka
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dse-network
+
+  # ===========================================================================
+  # MinIO — S3-compatible object storage for raw HTML content
+  # ===========================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: dse-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dse-network
+
+  # ===========================================================================
+  # Prometheus — Metrics collection
+  # ===========================================================================
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: dse-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./configs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - dse-network
+
+  # ===========================================================================
+  # Grafana — Dashboards and visualization
+  # ===========================================================================
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: dse-grafana
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - dse-network
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  dse-network:
+    driver: bridge
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+  redis_data:
+  kafka_data:
+  minio_data:
+  prometheus_data:
+  grafana_data:
